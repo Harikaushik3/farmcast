@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FarmCast Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>FarmCast Connection Test</h1>
+    
+    <div class="test-section">
+        <h3>Backend API Test</h3>
+        <div id="backend-status">Testing...</div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Frontend Test</h3>
+        <div id="frontend-status">React components should load here</div>
+    </div>
+
+    <script>
+        // Test backend connection
+        fetch('http://localhost:8001/')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('backend-status').innerHTML = 
+                    '<span class="success">✓ Backend connected: ' + JSON.stringify(data) + '</span>';
+            })
+            .catch(error => {
+                document.getElementById('backend-status').innerHTML = 
+                    '<span class="error">✗ Backend error: ' + error.message + '</span>';
+            });
+
+        // Test basic JavaScript
+        document.getElementById('frontend-status').innerHTML = 
+            '<span class="success">✓ JavaScript is working</span>';
+    </script>
+</body>
+</html>
