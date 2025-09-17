@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import asyncio
 import aiohttp
 from dataclasses import dataclass
+import os
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -47,9 +48,11 @@ class SoilData:
 
 class LocationService:
     def __init__(self):
-        # Free weather API keys (replace with actual keys)
-        self.openweather_api_key = "your_openweather_api_key"
-        self.weatherapi_key = "your_weatherapi_key"
+        # Load API keys from environment
+        # OPENWEATHER_API_KEY and OPENCAGE_API_KEY supported
+        self.openweather_api_key = os.getenv("OPENWEATHER_API_KEY", "")
+        self.weatherapi_key = os.getenv("WEATHERAPI_KEY", "")
+        self.opencage_api_key = os.getenv("OPENCAGE_API_KEY", "")
         
         # SoilGrids API endpoint
         self.soilgrids_base_url = "https://rest.isric.org/soilgrids/v2.0"
@@ -67,7 +70,10 @@ class LocationService:
     async def get_location_from_coordinates(self, lat: float, lon: float) -> LocationData:
         """Get location details from GPS coordinates using reverse geocoding"""
         try:
-            url = f"https://api.opencagedata.com/geocode/v1/json?q={lat}+{lon}&key=your_opencage_api_key"
+            # Use OpenCage if API key is provided; otherwise return fallback
+            if not self.opencage_api_key:
+                raise RuntimeError("Missing OPENCAGE_API_KEY")
+            url = f"https://api.opencagedata.com/geocode/v1/json?q={lat}+{lon}&key={self.opencage_api_key}"
             
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
@@ -93,7 +99,9 @@ class LocationService:
     async def get_current_weather(self, lat: float, lon: float) -> WeatherData:
         """Fetch current weather data from multiple APIs"""
         try:
-            # Primary: OpenWeatherMap API
+            # Primary: OpenWeatherMap API (use fallback if key missing)
+            if not self.openweather_api_key:
+                raise RuntimeError("Missing OPENWEATHER_API_KEY")
             url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={self.openweather_api_key}&units=metric"
             
             async with aiohttp.ClientSession() as session:
@@ -177,6 +185,8 @@ class LocationService:
     async def get_weather_forecast(self, lat: float, lon: float, days: int = 7) -> List[WeatherData]:
         """Get multi-day weather forecast"""
         try:
+            if not self.openweather_api_key:
+                raise RuntimeError("Missing OPENWEATHER_API_KEY")
             url = f"https://api.openweathermap.org/data/2.5/forecast?lat={lat}&lon={lon}&appid={self.openweather_api_key}&units=metric"
             
             async with aiohttp.ClientSession() as session:

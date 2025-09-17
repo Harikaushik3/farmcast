@@ -91,7 +91,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Start the FastAPI server
-uvicorn main:app --reload --host 0.0.0.0 --port 8001
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 #### Option B: Using Docker
@@ -104,10 +104,10 @@ docker-compose up --build
 
 # Or build and run manually
 docker build -t farmcast-api .
-docker run -p 8001:8001 farmcast-api
+docker run -p 8000:8000 farmcast-api
 ```
 
-The backend API will be available at `http://localhost:8001`
+The backend API will be available at `http://localhost:8000`
 
 ### 3. Frontend Setup
 ```bash
@@ -122,7 +122,7 @@ The frontend will be available at `http://localhost:5173`
 
 ## 📊 API Endpoints
 
-### Base URL: `http://localhost:8001`
+### Base URL: `http://localhost:8000`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|

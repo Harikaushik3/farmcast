@@ -16,8 +16,18 @@ from contextlib import asynccontextmanager
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables ASAP so services can read them
 load_dotenv()
+
+# Import intelligent farmer-support services
+try:
+    from services.location_service import location_service, LocationData, WeatherData, SoilData
+    from services.crop_intelligence import crop_intelligence, CropRecommendation
+    from services.cache_service import cache_service
+    from services.historical_service import historical_service, SeasonalInsight, YieldTrend, ClimatePattern
+except Exception as _svc_err:
+    # Services are optional; endpoints will raise if used without services
+    print(f"⚠️ Service import warning: {_svc_err}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -137,6 +147,26 @@ class PredictionResponse(BaseModel):
     predicted_yield: float
     confidence_score: float
     optimization_tips: List[str]
+
+# ===== Farmer-Support Request Models =====
+class LocationRequest(BaseModel):
+    latitude: float
+    longitude: float
+
+class CropRecommendationRequest(BaseModel):
+    latitude: float
+    longitude: float
+    season: Optional[str] = None
+
+class HistoricalAnalysisRequest(BaseModel):
+    latitude: float
+    longitude: float
+    years_back: Optional[int] = 5
+
+class WeatherForecastRequest(BaseModel):
+    latitude: float
+    longitude: float
+    days: Optional[int] = 7
 
 def load_and_preprocess_data():
     """Load and preprocess the crop data"""
@@ -331,6 +361,14 @@ def generate_optimization_tips(input_data: PredictionInput, predicted_yield: flo
 @app.get("/")
 async def root():
     return {"message": "Farm Cast API - ML-powered crop yield prediction"}
+
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "model_ready": model is not None or model_trained,
+        "timestamp": pd.Timestamp.now().isoformat()
+    }
 
 @app.post("/train", response_model=TrainingResponse)
 async def train_model():
@@ -788,6 +826,7 @@ async def chat_with_assistant(input_data: ChatInput):
         
         # Get Gemini API key from environment
         api_key = os.getenv('GEMINI_API_KEY')
+        model_name = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')
         if not api_key:
             return {"response": "Sorry, the chatbot is not configured properly. Please set up the Gemini API key."}
         
@@ -796,18 +835,21 @@ async def chat_with_assistant(input_data: ChatInput):
         
         # Create the model - try different model names
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel(model_name)
         except Exception as model_error:
-            print(f"❌ Failed to create gemini-1.5-flash: {model_error}")
-            try:
-                model = genai.GenerativeModel('gemini-pro')
-            except Exception as model_error2:
-                print(f"❌ Failed to create gemini-pro: {model_error2}")
+            print(f"❌ Failed to create {model_name}: {model_error}")
+            # Fallbacks
+            for fallback in ['gemini-1.5-flash', 'gemini-pro']:
                 try:
-                    model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
-                except Exception as model_error3:
-                    print(f"❌ Failed to create gemini-1.5-flash-latest: {model_error3}")
-                    return {"response": "Sorry, I'm having trouble connecting to the AI service. Please try again later."}
+                    model = genai.GenerativeModel(fallback)
+                    print(f"✅ Fallback to {fallback}")
+                    break
+                except Exception as model_error2:
+                    print(f"❌ Failed to create {fallback}: {model_error2}")
+                    model = None
+            if model is None:
+                print(f"❌ Failed to create gemini-pro: {model_error2}")
+                return {"response": "I'm sorry, the AI model is not available right now. Please try again later."}
         
         # Create a system prompt based on language
         system_prompts = {
@@ -1060,6 +1102,215 @@ async def get_custom_prediction(input_data: CustomPredictionInput):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get custom prediction: {str(e)}")
 
+# ==================== INTELLIGENT FARMER SUPPORT ENDPOINTS ====================
+
+@app.post("/farmer-support/location-data")
+async def fs_location_data(request: LocationRequest):
+    try:
+        # Check cache
+        cached_location = cache_service.get_location_data(request.latitude, request.longitude) if 'cache_service' in globals() else None
+        cached_weather = cache_service.get_weather_data(request.latitude, request.longitude) if 'cache_service' in globals() else None
+        cached_soil = cache_service.get_soil_data(request.latitude, request.longitude) if 'cache_service' in globals() else None
+
+        location_data = cached_location or await location_service.get_location_from_coordinates(request.latitude, request.longitude)
+        if 'cache_service' in globals() and not cached_location:
+            cache_service.store_location_data(location_data)
+
+        weather_data = cached_weather or await location_service.get_current_weather(request.latitude, request.longitude)
+        if 'cache_service' in globals() and not cached_weather:
+            cache_service.store_weather_data(request.latitude, request.longitude, weather_data)
+
+        soil_data = cached_soil or await location_service.get_soil_data(request.latitude, request.longitude)
+        if 'cache_service' in globals() and not cached_soil:
+            cache_service.store_soil_data(request.latitude, request.longitude, soil_data)
+
+        climatic_zone = location_service.get_climatic_zone(location_data.state)
+
+        return {
+            "location": {
+                "latitude": location_data.latitude,
+                "longitude": location_data.longitude,
+                "address": location_data.address,
+                "district": location_data.district,
+                "state": location_data.state,
+                "country": location_data.country,
+                "climatic_zone": climatic_zone,
+            },
+            "weather": {
+                "temperature": weather_data.temperature,
+                "humidity": weather_data.humidity,
+                "rainfall": weather_data.rainfall,
+                "evapotranspiration": weather_data.evapotranspiration,
+                "wind_speed": weather_data.wind_speed,
+                "pressure": weather_data.pressure,
+                "timestamp": weather_data.timestamp.isoformat(),
+            },
+            "soil": {
+                "ph": soil_data.ph,
+                "moisture": soil_data.moisture,
+                "organic_carbon": soil_data.organic_carbon,
+                "nitrogen": soil_data.nitrogen,
+                "phosphorus": soil_data.phosphorus,
+                "potassium": soil_data.potassium,
+                "sand_content": soil_data.sand_content,
+                "clay_content": soil_data.clay_content,
+                "silt_content": soil_data.silt_content,
+            },
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting location data: {str(e)}")
+
+
+@app.post("/farmer-support/crop-recommendations")
+async def fs_crop_recommendations(request: CropRecommendationRequest):
+    try:
+        # Cache key includes season
+        cached = cache_service.get_crop_recommendations(request.latitude, request.longitude, request.season or "") if 'cache_service' in globals() else None
+
+        if cached:
+            recommendations = cached
+        else:
+            location_data = await location_service.get_location_from_coordinates(request.latitude, request.longitude)
+            weather_data = await location_service.get_current_weather(request.latitude, request.longitude)
+            soil_data = await location_service.get_soil_data(request.latitude, request.longitude)
+            weather_forecast = await location_service.get_weather_forecast(request.latitude, request.longitude, 7)
+            climatic_zone = location_service.get_climatic_zone(location_data.state)
+
+            recommendations = crop_intelligence.get_crop_recommendations(
+                location_data, weather_data, soil_data, climatic_zone, weather_forecast, request.season
+            )
+            if 'cache_service' in globals():
+                cache_service.store_crop_recommendations(request.latitude, request.longitude, recommendations, request.season or "")
+
+        out = []
+        for rec in recommendations:
+            out.append({
+                "crop_name": rec.crop_name,
+                "expected_yield": rec.expected_yield,
+                "profit_margin": rec.profit_margin,
+                "sustainability_score": rec.sustainability_score,
+                "water_requirement": rec.water_requirement,
+                "growth_duration": rec.growth_duration,
+                "best_planting_time": rec.best_planting_time,
+                "risk_factors": rec.risk_factors,
+                "care_instructions": rec.care_instructions,
+            })
+
+        loc = await location_service.get_location_from_coordinates(request.latitude, request.longitude)
+        return {
+            "recommendations": out,
+            "location": f"{loc.district}, {loc.state}",
+            "season": request.season,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting crop recommendations: {str(e)}")
+
+
+@app.post("/farmer-support/weather-forecast")
+async def fs_weather_forecast(request: WeatherForecastRequest):
+    try:
+        forecast_data = await location_service.get_weather_forecast(request.latitude, request.longitude, request.days or 7)
+        forecast_list = [{
+            "temperature": w.temperature,
+            "humidity": w.humidity,
+            "rainfall": w.rainfall,
+            "evapotranspiration": w.evapotranspiration,
+            "wind_speed": w.wind_speed,
+            "pressure": w.pressure,
+            "timestamp": w.timestamp.isoformat(),
+        } for w in forecast_data]
+
+        return {
+            "forecast": forecast_list,
+            "location": {"latitude": request.latitude, "longitude": request.longitude},
+            "days_requested": request.days,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting weather forecast: {str(e)}")
+
+
+@app.post("/farmer-support/historical-analysis")
+async def fs_historical_analysis(request: HistoricalAnalysisRequest):
+    try:
+        loc = await location_service.get_location_from_coordinates(request.latitude, request.longitude)
+
+        cached_historical = cache_service.get_historical_data(request.latitude, request.longitude) if 'cache_service' in globals() else None
+        if cached_historical:
+            historical_patterns = cached_historical
+        else:
+            historical_patterns = historical_service.analyze_historical_patterns(loc, request.years_back or 5)
+            if 'cache_service' in globals():
+                cache_service.store_historical_data(request.latitude, request.longitude, historical_patterns)
+
+        seasonal_insights = historical_service.get_seasonal_insights(loc)
+        yield_trends = historical_service.analyze_yield_trends(loc)
+        climate_patterns = historical_service.get_climate_patterns(loc)
+
+        historical_data = [{
+            "crop": p.crop,
+            "year": p.year,
+            "yield_per_hectare": p.yield_per_hectare,
+            "profit_margin": p.profit_margin,
+            "weather_conditions": p.weather_conditions,
+            "success_rate": p.success_rate,
+        } for p in historical_patterns]
+
+        seasonal_data = [{
+            "season": s.season,
+            "recommended_crops": s.recommended_crops,
+            "average_yield": s.average_yield,
+            "success_rate": s.success_rate,
+            "risk_factors": s.risk_factors,
+            "optimal_planting_window": s.optimal_planting_window,
+        } for s in seasonal_insights]
+
+        trends_data = [{
+            "crop": t.crop,
+            "years": t.years,
+            "yields": t.yields,
+            "trend_direction": t.trend_direction,
+            "trend_percentage": t.trend_percentage,
+            "prediction_next_year": t.prediction_next_year,
+        } for t in yield_trends]
+
+        climate_data = {
+            "location": climate_patterns.location,
+            "temperature_trend": climate_patterns.temperature_trend,
+            "rainfall_pattern": climate_patterns.rainfall_pattern,
+            "extreme_events": climate_patterns.extreme_events,
+            "climate_zone_shift": climate_patterns.climate_zone_shift,
+        }
+
+        return {
+            "historical_patterns": historical_data,
+            "seasonal_insights": seasonal_data,
+            "yield_trends": trends_data,
+            "climate_patterns": climate_data,
+            "location": f"{loc.district}, {loc.state}",
+            "years_analyzed": request.years_back,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting historical analysis: {str(e)}")
+
+
+@app.get("/farmer-support/cache-stats")
+async def fs_cache_stats():
+    try:
+        stats = cache_service.get_cache_stats() if 'cache_service' in globals() else {}
+        return {"cache_stats": stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting cache stats: {str(e)}")
+
+
+@app.post("/farmer-support/clear-cache")
+async def fs_clear_cache(data_type: Optional[str] = None):
+    try:
+        if 'cache_service' in globals():
+            cache_service.clear_cache(data_type=data_type)
+        return {"message": f"Cache cleared for type: {data_type or 'all'}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error clearing cache: {str(e)}")
+
 @app.get("/test-gemini")
 async def test_gemini():
     """Test endpoint to check if Gemini API is working"""
@@ -1069,18 +1320,23 @@ async def test_gemini():
             return {"status": "error", "message": "No API key found"}
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model_name = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')
+        try:
+            model = genai.GenerativeModel(model_name)
+        except Exception:
+            model = genai.GenerativeModel('gemini-1.5-flash')
         
         response = model.generate_content("Say hello in one word")
         
         return {
             "status": "success", 
             "message": "Gemini API is working",
-            "response": response.text if response and response.text else "No response"
+            "response": response.text if response and response.text else "No response",
+            "model": model_name
         }
     except Exception as e:
         return {"status": "error", "message": f"Gemini API test failed: {str(e)}"}
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

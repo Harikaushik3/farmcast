@@ -19,6 +19,7 @@ import CropRecommendations from '../components/CropRecommendations';
 import HistoricalInsights from '../components/HistoricalInsights';
 import VoiceAssistant from '../components/VoiceAssistant';
 import QuickActions from '../components/QuickActions';
+import { farmCastAPI } from '../services/api';
 
 const FarmerSupport = () => {
   const { t } = useTranslation();
@@ -49,20 +50,8 @@ const FarmerSupport = () => {
     setError(null);
     
     try {
-      // Fetch comprehensive location data
-      const response = await fetch('http://127.0.0.1:8001/farmer-support/location-data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ latitude, longitude }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch location data');
-      }
-
-      const data = await response.json();
+      // Fetch comprehensive location data via API service
+      const data = await farmCastAPI.getLocationData(latitude, longitude);
       setLocationData(data.location);
       setWeatherData(data.weather);
       setSoilData(data.soil);
@@ -87,19 +76,7 @@ const FarmerSupport = () => {
 
   const fetchCropRecommendations = async (latitude, longitude, season = null) => {
     try {
-      const response = await fetch('http://127.0.0.1:8001/farmer-support/crop-recommendations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ latitude, longitude, season }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch crop recommendations');
-      }
-
-      const data = await response.json();
+      const data = await farmCastAPI.getCropRecommendations(latitude, longitude, season);
       setRecommendations(data);
       
       updateStepStatus(3, true);
@@ -115,19 +92,7 @@ const FarmerSupport = () => {
 
   const fetchHistoricalInsights = async (latitude, longitude) => {
     try {
-      const response = await fetch('http://127.0.0.1:8001/farmer-support/historical-analysis', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ latitude, longitude, years_back: 5 }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch historical insights');
-      }
-
-      const data = await response.json();
+      const data = await farmCastAPI.getHistoricalAnalysis(latitude, longitude, 5);
       setHistoricalData(data);
       
       updateStepStatus(4, true);
