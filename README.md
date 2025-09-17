@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 🌾 Farm Cast - AI-Powered Crop Yield Prediction
 
 Farm Cast is a comprehensive full-stack application that uses machine learning to predict crop yields based on weather conditions, soil parameters, and crop types. Built with React frontend and Python FastAPI backend with XGBoost ML model.
@@ -333,3 +334,10 @@ For support and questions:
 ---
 
 **Built with ❤️ for sustainable agriculture and data-driven farming decisions.**
+=======
+# farmcast
+>>>>>>> 9e9616d1a789dd9f73c096750f89915c3e00dead
+# FarmCast
+
+This is the FarmCast project repository.  
+Contributors can clone, update, and push changes here.
