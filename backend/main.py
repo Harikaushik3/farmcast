@@ -19,15 +19,17 @@ from dotenv import load_dotenv
 # Load environment variables ASAP so services can read them
 load_dotenv()
 
-# Import intelligent farmer-support services
+# Import intelligent farmer-support services (temporarily disabled for debugging)
 try:
     from services.location_service import location_service, LocationData, WeatherData, SoilData
     from services.crop_intelligence import crop_intelligence, CropRecommendation
     from services.cache_service import cache_service
     from services.historical_service import historical_service, SeasonalInsight, YieldTrend, ClimatePattern
+    print("✅ Services imported successfully")
 except Exception as _svc_err:
     # Services are optional; endpoints will raise if used without services
     print(f"⚠️ Service import warning: {_svc_err}")
+    print("🔄 Continuing without intelligent services...")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -933,19 +935,91 @@ async def get_historical_data(crop: str, region: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get historical data: {str(e)}")
 
+async def get_simple_trend_predictions(crop: str, region: str, target_year: int = 2025):
+    """Generate simple trend-based predictions when ML model is not available"""
+    try:
+        X, y, df = load_and_preprocess_data()
+        
+        # Get historical data for this crop-region combination
+        historical_data = df[(df['State'] == region) & (df['Crop'] == crop)]
+        if historical_data.empty:
+            raise HTTPException(status_code=404, detail=f"No data found for {crop} in {region}")
+        
+        # Calculate historical trend using linear regression
+        historical_years = historical_data['Crop_Year'].values
+        historical_yields = historical_data['Yield'].values
+        
+        # Calculate trend slope
+        if len(historical_years) > 1:
+            trend_slope = np.polyfit(historical_years, historical_yields, 1)[0]
+            trend_intercept = np.polyfit(historical_years, historical_yields, 1)[1]
+        else:
+            trend_slope = 0
+            trend_intercept = historical_yields[0]
+        
+        # Calculate prediction range: from 2023 to 2 years after target_year
+        start_year = 2023
+        end_year = target_year + 2
+        
+        predictions = []
+        print(f"🔄 Generating simple trend predictions for {crop} in {region} from {start_year} to {end_year}")
+        
+        for year in range(start_year, end_year + 1):
+            # Simple linear trend prediction
+            predicted_yield = trend_slope * year + trend_intercept
+            
+            # Add some realistic variation based on historical data
+            historical_std = historical_yields.std() if len(historical_yields) > 1 else 0.1
+            np.random.seed(year)  # Consistent random variation
+            variation = np.random.normal(0, historical_std * 0.1)  # 10% of historical std
+            predicted_yield += variation
+            
+            # Ensure prediction is positive and reasonable
+            predicted_yield = max(predicted_yield, 0.1)
+            
+            predictions.append({
+                "year": year,
+                "predicted_yield": safe_float(predicted_yield),
+                "predicted_yield_tons": safe_float(predicted_yield),
+                "conditions": {
+                    "method": "trend_based",
+                    "trend_slope": safe_float(trend_slope)
+                }
+            })
+        
+        return {
+            "crop": crop,
+            "region": region,
+            "predictions": predictions,
+            "prediction_range": f"{start_year}-{end_year}",
+            "target_year": target_year,
+            "historical_trend_slope": safe_float(trend_slope),
+            "method": "simple_trend",
+            "base_conditions": {
+                "historical_years": len(historical_years),
+                "trend_slope": safe_float(trend_slope)
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate simple predictions: {str(e)}")
+
 @app.get("/predictions/{crop}/{region}")
-async def get_predictions_for_crop_region(crop: str, region: str, start_year: int = 2024, end_year: int = 2030):
+async def get_predictions_for_crop_region(crop: str, region: str, target_year: int = 2025):
     """Get yield predictions for a specific crop and region over a range of years with realistic trends"""
     global model, scaler, label_encoders, model_trained
     
+    # Try to ensure model is loaded
     if not model_trained:
         try:
             model = joblib.load('xgboost_model.pkl')
             scaler = joblib.load('scaler.pkl')
             label_encoders = joblib.load('label_encoders.pkl')
             model_trained = True
-        except:
-            raise HTTPException(status_code=400, detail="Model not trained. Please train the model first.")
+        except Exception as e:
+            print(f"⚠️ Model loading failed: {e}")
+            # For now, let's create simple trend-based predictions without the ML model
+            return await get_simple_trend_predictions(crop, region, target_year)
     
     try:
         X, y, df = load_and_preprocess_data()
@@ -974,8 +1048,14 @@ async def get_predictions_for_crop_region(crop: str, region: str, start_year: in
         last_year = historical_years.max()
         last_yield = historical_data[historical_data['Crop_Year'] == last_year]['Yield'].mean()
         
+        # Calculate prediction range: from 2023 to 2 years after target_year
+        start_year = 2023
+        end_year = target_year + 2
+        
         predictions = []
+        print(f"🔄 Generating predictions for {crop} in {region} from {start_year} to {end_year}")
         for year in range(start_year, end_year + 1):
+            print(f"🔄 Processing year {year}")
             try:
                 # Apply realistic variations to environmental conditions over time
                 years_from_last = year - last_year
@@ -1009,8 +1089,9 @@ async def get_predictions_for_crop_region(crop: str, region: str, start_year: in
                 trend_adjustment = trend_slope * years_from_last
                 predicted_yield = base_prediction + trend_adjustment
                 
-                # Add some realistic noise/variation
-                noise_factor = np.random.normal(0, predicted_yield * 0.02)  # 2% standard deviation
+                # Add some realistic noise/variation (set seed for consistency)
+                np.random.seed(year)  # Use year as seed for reproducible results
+                noise_factor = np.random.normal(0, abs(predicted_yield) * 0.02)  # 2% standard deviation
                 predicted_yield += noise_factor
                 
                 # Ensure prediction is positive (tons/ha)
@@ -1028,7 +1109,8 @@ async def get_predictions_for_crop_region(crop: str, region: str, start_year: in
                 })
                 
             except Exception as e:
-                print(f"Error predicting for year {year}: {e}")
+                print(f"❌ Error predicting for year {year}: {e}")
+                print(f"❌ Exception details: {traceback.format_exc()}")
                 continue
         
         return {
@@ -1036,6 +1118,7 @@ async def get_predictions_for_crop_region(crop: str, region: str, start_year: in
             "region": region,
             "predictions": predictions,
             "prediction_range": f"{start_year}-{end_year}",
+            "target_year": target_year,
             "historical_trend_slope": safe_float(trend_slope),
             "base_conditions": {
                 "rainfall": safe_float(avg_rainfall),
@@ -1046,6 +1129,33 @@ async def get_predictions_for_crop_region(crop: str, region: str, start_year: in
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get predictions: {str(e)}")
+
+@app.get("/combined-data/{crop}/{region}")
+async def get_combined_historical_and_predictions(crop: str, region: str, target_year: int = 2025):
+    """Get both historical data and predictions for a crop and region - optimized for chart display"""
+    try:
+        # Get historical data
+        historical_response = await get_historical_data(crop, region)
+        if "error" in historical_response:
+            return historical_response
+            
+        # Get predictions
+        predictions_response = await get_predictions_for_crop_region(crop, region, target_year)
+        
+        return {
+            "crop": crop,
+            "region": region,
+            "target_year": target_year,
+            "historical_data": historical_response["historical_data"],
+            "predictions": predictions_response["predictions"],
+            "historical_range": historical_response["year_range"],
+            "prediction_range": predictions_response["prediction_range"],
+            "total_samples": historical_response["total_samples"],
+            "historical_trend_slope": predictions_response["historical_trend_slope"]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get combined data: {str(e)}")
 
 class CustomPredictionInput(BaseModel):
     crop: str
@@ -1107,24 +1217,17 @@ async def get_custom_prediction(input_data: CustomPredictionInput):
 @app.post("/farmer-support/location-data")
 async def fs_location_data(request: LocationRequest):
     try:
-        # Check cache
-        cached_location = cache_service.get_location_data(request.latitude, request.longitude) if 'cache_service' in globals() else None
-        cached_weather = cache_service.get_weather_data(request.latitude, request.longitude) if 'cache_service' in globals() else None
-        cached_soil = cache_service.get_soil_data(request.latitude, request.longitude) if 'cache_service' in globals() else None
-
-        location_data = cached_location or await location_service.get_location_from_coordinates(request.latitude, request.longitude)
-        if 'cache_service' in globals() and not cached_location:
-            cache_service.store_location_data(location_data)
-
-        weather_data = cached_weather or await location_service.get_current_weather(request.latitude, request.longitude)
-        if 'cache_service' in globals() and not cached_weather:
-            cache_service.store_weather_data(request.latitude, request.longitude, weather_data)
-
-        soil_data = cached_soil or await location_service.get_soil_data(request.latitude, request.longitude)
-        if 'cache_service' in globals() and not cached_soil:
-            cache_service.store_soil_data(request.latitude, request.longitude, soil_data)
-
+        # Always fetch fresh data - no cache checking
+        location_data = await location_service.get_location_from_coordinates(request.latitude, request.longitude)
+        weather_data = await location_service.get_current_weather(request.latitude, request.longitude)
+        soil_data = await location_service.get_soil_data(request.latitude, request.longitude)
         climatic_zone = location_service.get_climatic_zone(location_data.state)
+
+        # Optional: Still store in cache for other uses, but we won't read from it
+        if 'cache_service' in globals():
+            cache_service.store_location_data(location_data)
+            cache_service.store_weather_data(request.latitude, request.longitude, weather_data)
+            cache_service.store_soil_data(request.latitude, request.longitude, soil_data)
 
         return {
             "location": {
@@ -1164,23 +1267,20 @@ async def fs_location_data(request: LocationRequest):
 @app.post("/farmer-support/crop-recommendations")
 async def fs_crop_recommendations(request: CropRecommendationRequest):
     try:
-        # Cache key includes season
-        cached = cache_service.get_crop_recommendations(request.latitude, request.longitude, request.season or "") if 'cache_service' in globals() else None
+        # Always fetch fresh data - no cache checking
+        location_data = await location_service.get_location_from_coordinates(request.latitude, request.longitude)
+        weather_data = await location_service.get_current_weather(request.latitude, request.longitude)
+        soil_data = await location_service.get_soil_data(request.latitude, request.longitude)
+        weather_forecast = await location_service.get_weather_forecast(request.latitude, request.longitude, 7)
+        climatic_zone = location_service.get_climatic_zone(location_data.state)
 
-        if cached:
-            recommendations = cached
-        else:
-            location_data = await location_service.get_location_from_coordinates(request.latitude, request.longitude)
-            weather_data = await location_service.get_current_weather(request.latitude, request.longitude)
-            soil_data = await location_service.get_soil_data(request.latitude, request.longitude)
-            weather_forecast = await location_service.get_weather_forecast(request.latitude, request.longitude, 7)
-            climatic_zone = location_service.get_climatic_zone(location_data.state)
-
-            recommendations = crop_intelligence.get_crop_recommendations(
-                location_data, weather_data, soil_data, climatic_zone, weather_forecast, request.season
-            )
-            if 'cache_service' in globals():
-                cache_service.store_crop_recommendations(request.latitude, request.longitude, recommendations, request.season or "")
+        recommendations = crop_intelligence.get_crop_recommendations(
+            location_data, weather_data, soil_data, climatic_zone, weather_forecast, request.season
+        )
+        
+        # Optional: Store in cache for other uses
+        if 'cache_service' in globals():
+            cache_service.store_crop_recommendations(request.latitude, request.longitude, recommendations, request.season or "")
 
         out = []
         for rec in recommendations:
@@ -1196,10 +1296,9 @@ async def fs_crop_recommendations(request: CropRecommendationRequest):
                 "care_instructions": rec.care_instructions,
             })
 
-        loc = await location_service.get_location_from_coordinates(request.latitude, request.longitude)
         return {
             "recommendations": out,
-            "location": f"{loc.district}, {loc.state}",
+            "location": f"{location_data.district}, {location_data.state}",
             "season": request.season,
         }
     except Exception as e:
@@ -1209,6 +1308,7 @@ async def fs_crop_recommendations(request: CropRecommendationRequest):
 @app.post("/farmer-support/weather-forecast")
 async def fs_weather_forecast(request: WeatherForecastRequest):
     try:
+        # Always fetch fresh forecast data
         forecast_data = await location_service.get_weather_forecast(request.latitude, request.longitude, request.days or 7)
         forecast_list = [{
             "temperature": w.temperature,
@@ -1232,15 +1332,15 @@ async def fs_weather_forecast(request: WeatherForecastRequest):
 @app.post("/farmer-support/historical-analysis")
 async def fs_historical_analysis(request: HistoricalAnalysisRequest):
     try:
+        # Always fetch fresh data
         loc = await location_service.get_location_from_coordinates(request.latitude, request.longitude)
-
-        cached_historical = cache_service.get_historical_data(request.latitude, request.longitude) if 'cache_service' in globals() else None
-        if cached_historical:
-            historical_patterns = cached_historical
-        else:
-            historical_patterns = historical_service.analyze_historical_patterns(loc, request.years_back or 5)
-            if 'cache_service' in globals():
-                cache_service.store_historical_data(request.latitude, request.longitude, historical_patterns)
+        
+        # Always get fresh historical patterns
+        historical_patterns = historical_service.analyze_historical_patterns(loc, request.years_back or 5)
+        
+        # Optional: Store in cache for other uses
+        if 'cache_service' in globals():
+            cache_service.store_historical_data(request.latitude, request.longitude, historical_patterns)
 
         seasonal_insights = historical_service.get_seasonal_insights(loc)
         yield_trends = historical_service.analyze_yield_trends(loc)
@@ -1293,6 +1393,7 @@ async def fs_historical_analysis(request: HistoricalAnalysisRequest):
         raise HTTPException(status_code=500, detail=f"Error getting historical analysis: {str(e)}")
 
 
+# Keep the cache stats and clear cache endpoints as they are for management purposes
 @app.get("/farmer-support/cache-stats")
 async def fs_cache_stats():
     try:
@@ -1310,6 +1411,61 @@ async def fs_clear_cache(data_type: Optional[str] = None):
         return {"message": f"Cache cleared for type: {data_type or 'all'}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error clearing cache: {str(e)}")
+
+@app.get("/test-predictions/{crop}/{region}")
+async def test_predictions(crop: str, region: str, target_year: int = 2025):
+    """Simple test endpoint for predictions"""
+    try:
+        import pandas as pd
+        import numpy as np
+        
+        # Load dataset
+        df = pd.read_csv('../crop_yield.csv')
+        
+        # Get historical data for this crop-region combination
+        historical_data = df[(df['State'] == region) & (df['Crop'] == crop)]
+        if historical_data.empty:
+            return {"error": f"No data found for {crop} in {region}"}
+        
+        # Calculate trend
+        years = historical_data['Crop_Year'].values
+        yields = historical_data['Yield'].values
+        
+        if len(years) > 1:
+            trend_slope = np.polyfit(years, yields, 1)[0]
+            trend_intercept = np.polyfit(years, yields, 1)[1]
+        else:
+            trend_slope = 0
+            trend_intercept = yields[0]
+        
+        # Generate predictions from 2023 to target_year + 2
+        start_year = 2023
+        end_year = target_year + 2
+        
+        predictions = []
+        for year in range(start_year, end_year + 1):
+            predicted_yield = trend_slope * year + trend_intercept
+            predicted_yield = max(predicted_yield, 0.1)  # Ensure positive
+            
+            predictions.append({
+                "year": year,
+                "predicted_yield": round(float(predicted_yield), 3),
+                "predicted_yield_tons": round(float(predicted_yield), 3)
+            })
+        
+        return {
+            "crop": crop,
+            "region": region,
+            "target_year": target_year,
+            "prediction_range": f"{start_year}-{end_year}",
+            "predictions": predictions,
+            "historical_records": len(historical_data),
+            "trend_slope": round(float(trend_slope), 6),
+            "method": "simple_trend_test"
+        }
+        
+    except Exception as e:
+        return {"error": f"Test prediction failed: {str(e)}"}
 
 @app.get("/test-gemini")
 async def test_gemini():

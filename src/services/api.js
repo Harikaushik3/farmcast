@@ -106,6 +106,18 @@ export const farmCastAPI = {
     return response.data
   },
 
+  // Get SoilGrids data from ISRIC API
+  getSoilGridsData: async (latitude, longitude) => {
+    try {
+      const soilGridsUrl = `https://rest.isric.org/soilgrids/v2.0/properties/query?lat=${latitude}&lon=${longitude}&property=phh2o&property=soc&property=clay&property=sand&property=silt&property=nitrogen&property=cec&property=bdod&depth=0-5cm&value=mean`
+      const response = await fetch(soilGridsUrl)
+      return await response.json()
+    } catch (error) {
+      console.error('SoilGrids API error:', error)
+      throw error
+    }
+  },
+
   // Get intelligent crop recommendations
   getCropRecommendations: async (latitude, longitude, season = null) => {
     const response = await api.post('/farmer-support/crop-recommendations', {

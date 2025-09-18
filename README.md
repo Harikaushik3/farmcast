@@ -1,15 +1,17 @@
-<<<<<<< HEAD
-# 🌾 Farm Cast - AI-Powered Crop Yield Prediction
+# 🌾 FarmCast - AI-Powered Agricultural Intelligence Platform
 
-Farm Cast is a comprehensive full-stack application that uses machine learning to predict crop yields based on weather conditions, soil parameters, and crop types. Built with React frontend and Python FastAPI backend with XGBoost ML model.
+FarmCast is a comprehensive full-stack application that uses machine learning to predict crop yields and provide intelligent agricultural insights. Built with React frontend and Python FastAPI backend featuring Random Forest ML model, location-based services, and intelligent crop recommendations.
 
 ## 🎯 Features
 
-- **AI-Powered Predictions**: XGBoost regression model for accurate yield forecasting
+- **AI-Powered Predictions**: Random Forest regression model for accurate yield forecasting
+- **Intelligent Crop Recommendations**: Get the best crop suggestions for your conditions
+- **Location-Based Services**: Weather data and soil information based on geographic coordinates
 - **Interactive Dashboard**: Real-time visualizations and model statistics
-- **Smart Recommendations**: Personalized optimization tips for farmers
+- **Smart Optimization Tips**: Personalized recommendations for farmers
+- **Multi-language Support**: Internationalization with i18next
 - **Modern UI**: Responsive design with TailwindCSS
-- **REST API**: FastAPI backend with comprehensive endpoints
+- **Comprehensive API**: FastAPI backend with extensive endpoints
 - **Data Visualization**: Interactive charts using Recharts
 
 ## 🏗️ Tech Stack
@@ -17,11 +19,12 @@ Farm Cast is a comprehensive full-stack application that uses machine learning t
 ### Backend
 - **Python 3.11+**
 - **FastAPI** - Modern web framework for APIs
-- **XGBoost** - Machine learning model for predictions
+- **Random Forest** - Machine learning model for predictions
 - **Pandas & NumPy** - Data processing
 - **Scikit-learn** - Data preprocessing and evaluation
-- **SHAP** - Feature importance analysis
+- **Google Generative AI** - Enhanced intelligence features
 - **Uvicorn** - ASGI server
+- **Intelligent Services**: Location, crop intelligence, caching, and historical analysis
 
 ### Frontend
 - **React 19** - UI framework
@@ -31,31 +34,38 @@ Farm Cast is a comprehensive full-stack application that uses machine learning t
 - **Axios** - HTTP client
 - **React Router** - Client-side routing
 - **Heroicons** - Icon library
+- **i18next** - Internationalization framework
 
 ## 📁 Project Structure
 
 ```
 farmcast/
-├── backend/                 # Python FastAPI backend
-│   ├── main.py             # FastAPI application
-│   ├── crop_yield.csv      # Training dataset
-│   ├── requirements.txt    # Python dependencies
-│   ├── Dockerfile          # Docker configuration
-│   └── docker-compose.yml  # Docker Compose setup
-├── src/                    # React frontend
-│   ├── components/         # Reusable components
-│   │   └── Navbar.jsx      # Navigation component
-│   ├── pages/              # Page components
-│   │   ├── Home.jsx        # Dashboard page
-│   │   ├── Prediction.jsx  # Prediction form page
-│   │   └── Visualization.jsx # Charts and analytics
-│   ├── services/           # API services
-│   │   └── api.js          # API client
-│   ├── App.jsx             # Main app component
-│   └── index.css           # Global styles
-├── package.json            # Frontend dependencies
-├── tailwind.config.js      # TailwindCSS configuration
-└── README.md               # This file
+├── backend/                    # Python FastAPI backend
+│   ├── main.py                # Main FastAPI application
+│   ├── services/              # Intelligent services
+│   │   ├── location_service.py    # Location & weather data
+│   │   ├── crop_intelligence.py   # Crop recommendations
+│   │   ├── cache_service.py       # Caching system
+│   │   └── historical_service.py  # Historical analysis
+│   ├── requirements.txt       # Python dependencies
+│   └── crop_yield.csv        # Training dataset
+├── src/                       # React frontend
+│   ├── components/            # Reusable components
+│   ├── pages/                 # Page components
+│   ├── services/              # API services
+│   ├── App.jsx                # Main app component
+│   └── index.css              # Global styles
+├── public/                    # Static assets
+├── Crop_data.csv             # Additional crop data
+├── package.json              # Frontend dependencies
+├── tailwind.config.js        # TailwindCSS configuration
+├── vite.config.js            # Vite configuration
+├── start_farmcast.bat        # Windows startup script
+├── start_backend.bat         # Backend startup script
+├── FARMER_SUPPORT_GUIDE.md   # Farmer support documentation
+├── PORT_CONFIGURATION.md     # Port configuration guide
+├── QUICK_START.md            # Quick start guide
+└── README.md                 # This file
 ```
 
 ## 🚀 Quick Start
@@ -73,7 +83,7 @@ cd farmcast
 
 ### 2. Backend Setup
 
-#### Option A: Using Python Virtual Environment
+#### Using Python Virtual Environment
 ```bash
 # Navigate to backend directory
 cd backend
@@ -94,17 +104,13 @@ pip install -r requirements.txt
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-#### Option B: Using Docker
+#### Using Batch Scripts (Windows)
 ```bash
-# Navigate to backend directory
-cd backend
+# Start backend only
+start_backend.bat
 
-# Build and run with Docker Compose
-docker-compose up --build
-
-# Or build and run manually
-docker build -t farmcast-api .
-docker run -p 8000:8000 farmcast-api
+# Start complete application (backend + frontend)
+start_farmcast.bat
 ```
 
 The backend API will be available at `http://localhost:8000`
@@ -127,30 +133,60 @@ The frontend will be available at `http://localhost:5173`
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/` | API health check |
-| POST | `/train` | Train the XGBoost model |
+| GET | `/health` | Detailed health status |
+| POST | `/train` | Train the Random Forest model |
 | POST | `/predict` | Make yield predictions |
+| POST | `/suggest-crops` | Get best crop recommendations |
 | GET | `/feature-importance` | Get feature importance scores |
 | GET | `/model-stats` | Get dataset and model statistics |
+| GET | `/crop-options` | Get available crop types |
+| GET | `/state-options` | Get available states |
+| GET | `/season-options` | Get available seasons |
+
+### Intelligent Services Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/location/weather` | Get weather data by coordinates |
+| POST | `/location/soil` | Get soil data by coordinates |
+| POST | `/crop-intelligence/recommend` | Get intelligent crop recommendations |
+| POST | `/historical/analysis` | Get historical yield analysis |
+| POST | `/weather/forecast` | Get weather forecast |
 
 ### Example API Usage
 
 #### Train Model
 ```bash
-curl -X POST "http://localhost:8001/train"
+curl -X POST "http://localhost:8000/train"
 ```
 
 #### Make Prediction
 ```bash
-curl -X POST "http://localhost:8001/predict" \
+curl -X POST "http://localhost:8000/predict" \
   -H "Content-Type: application/json" \
   -d '{
-    "Temperature": 25.5,
-    "Rainfall": 800,
-    "pH": 6.2,
-    "Nitrogen": 40,
-    "Phosphorus": 35,
-    "Potassium": 20,
-    "Crop": "Rice"
+    "State": "Punjab",
+    "Crop": "Rice",
+    "Crop_Year": 2024,
+    "Season": "Kharif",
+    "Area": 10.5,
+    "Annual_Rainfall": 1200,
+    "Fertilizer": 150,
+    "Pesticide": 25
+  }'
+```
+
+#### Get Crop Suggestions
+```bash
+curl -X POST "http://localhost:8000/suggest-crops" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "State": "Punjab",
+    "Crop_Year": 2024,
+    "Season": "Kharif",
+    "Area": 10.5,
+    "Annual_Rainfall": 1200,
+    "Fertilizer": 150,
+    "Pesticide": 25
   }'
 ```
 
@@ -164,16 +200,25 @@ curl -X POST "http://localhost:8001/predict" \
 
 ### 2. Prediction Page
 - Enter farming conditions:
-  - **Weather**: Temperature (°C), Rainfall (mm)
-  - **Soil**: pH level, Nitrogen, Phosphorus, Potassium (kg/ha)
-  - **Crop**: Select from Rice, Wheat, or Corn
-- Get AI-powered yield predictions
+  - **Location**: State selection
+  - **Crop Details**: Crop type, year, season
+  - **Area**: Cultivation area in hectares
+  - **Weather**: Annual rainfall in mm
+  - **Inputs**: Fertilizer and pesticide usage
+- Get AI-powered yield predictions with confidence scores
 - Receive personalized optimization tips
 
-### 3. Visualization Page
+### 3. Crop Recommendation
+- Input your farming conditions
+- Get top 3 crop recommendations
+- Compare predicted yields across different crops
+- View historical performance data
+
+### 4. Visualization Page
 - Interactive feature importance charts
 - Correlation analysis with yield
-- Crop distribution in dataset
+- Crop and state distribution in dataset
+- Yield trends over years
 - Key insights and statistics
 
 ## 🔧 Configuration
@@ -183,7 +228,10 @@ Create a `.env` file in the backend directory:
 ```env
 # API Configuration
 API_HOST=0.0.0.0
-API_PORT=8001
+API_PORT=8000
+
+# Google AI Configuration (optional)
+GOOGLE_API_KEY=your_google_api_key_here
 
 # Model Configuration
 MODEL_PATH=./models/
@@ -193,37 +241,30 @@ DATA_PATH=./crop_yield.csv
 ### Frontend Configuration
 Update API base URL in `src/services/api.js` if needed:
 ```javascript
-const API_BASE_URL = 'http://localhost:8001'
+const API_BASE_URL = 'http://localhost:8000'
 ```
 
 ## 📈 Model Information
 
 ### Dataset Features
-- **Temperature**: Air temperature in Celsius
-- **Rainfall**: Annual rainfall in millimeters
-- **pH**: Soil pH level (3.0-9.0)
-- **Nitrogen**: Nitrogen content in kg/ha
-- **Phosphorus**: Phosphorus content in kg/ha
-- **Potassium**: Potassium content in kg/ha
-- **Crop**: Crop type (Rice, Wheat, Corn)
+- **State**: Indian state where crop is grown
+- **Crop**: Crop type (Rice, Wheat, Maize, Cotton, etc.)
+- **Crop_Year**: Year of cultivation
+- **Season**: Growing season (Kharif, Rabi, Summer, Whole Year)
+- **Area**: Cultivation area in hectares
+- **Annual_Rainfall**: Annual rainfall in millimeters
+- **Fertilizer**: Fertilizer usage in kg/ha
+- **Pesticide**: Pesticide usage in kg/ha
 
 ### Model Performance
-- **Algorithm**: XGBoost Regressor
+- **Algorithm**: Random Forest Regressor
 - **Evaluation Metric**: RMSE (Root Mean Square Error)
 - **Train/Test Split**: 80/20
 - **Feature Scaling**: StandardScaler for numerical features
 - **Encoding**: LabelEncoder for categorical features
+- **Confidence Scoring**: Based on prediction variance across trees
 
 ## 🚢 Deployment
-
-### Backend Deployment (Docker)
-```bash
-# Build production image
-docker build -t farmcast-api:prod .
-
-# Run in production mode
-docker run -d -p 8001:8001 --name farmcast-api farmcast-api:prod
-```
 
 ### Frontend Deployment
 ```bash
@@ -240,51 +281,64 @@ Deploy the `dist/` folder to platforms like:
 - **AWS S3 + CloudFront**
 - **GitHub Pages**
 
+### Backend Deployment
+The FastAPI backend can be deployed to:
+- **Heroku**: Using Procfile
+- **AWS EC2**: Using Docker or direct deployment
+- **Google Cloud Run**: Using containerization
+- **DigitalOcean**: App Platform or Droplets
+
 ## 🛠️ Development
 
 ### Adding New Features
-1. **Backend**: Add endpoints in `backend/main.py`
-2. **Frontend**: Create components in `src/components/`
+1. **Backend**: Add endpoints in `backend/main.py` or create new services
+2. **Frontend**: Create components in `src/components/` or pages in `src/pages/`
 3. **API Integration**: Update `src/services/api.js`
+4. **Services**: Add intelligent services in `backend/services/`
 
 ### Code Style
 - **Backend**: Follow PEP 8 Python style guide
-- **Frontend**: Use ESLint configuration
+- **Frontend**: Use ESLint configuration with React best practices
 - **Commits**: Use conventional commit messages
 
-### Testing
+### Available Scripts
 ```bash
-# Backend testing
-cd backend
-python -m pytest
+# Frontend
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run preview      # Preview production build
+npm run lint         # Run ESLint
 
-# Frontend testing
-npm test
+# Backend
+uvicorn main:app --reload    # Start development server
+python -m pytest            # Run tests (if available)
 ```
 
 ## 📝 Sample Data
 
-### Input Example
+### Prediction Input Example
 ```json
 {
-  "Temperature": 28.3,
-  "Rainfall": 1200,
-  "pH": 6.8,
-  "Nitrogen": 45,
-  "Phosphorus": 40,
-  "Potassium": 25,
-  "Crop": "Rice"
+  "State": "Punjab",
+  "Crop": "Rice",
+  "Crop_Year": 2024,
+  "Season": "Kharif",
+  "Area": 15.5,
+  "Annual_Rainfall": 1200,
+  "Fertilizer": 180,
+  "Pesticide": 30
 }
 ```
 
 ### Expected Output
 ```json
 {
-  "predicted_yield": 5.1,
-  "confidence_score": 0.85,
+  "predicted_yield": 6.2,
+  "confidence_score": 0.87,
   "optimization_tips": [
-    "Current conditions are well-balanced for good crop yield.",
-    "Consider maintaining current nutrient levels for optimal growth."
+    "Monsoon season crop. Ensure proper drainage and pest management during humid conditions.",
+    "Maintain proper water management and monitor for blast disease.",
+    "Current conditions are well-balanced for good crop yield."
   ]
 }
 ```
@@ -308,7 +362,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **Backend not starting:**
 - Check Python version (3.11+ required)
 - Verify all dependencies installed: `pip install -r requirements.txt`
-- Ensure port 8001 is not in use
+- Ensure port 8000 is not in use
+- Check if virtual environment is activated
 
 **Frontend build errors:**
 - Clear node_modules: `rm -rf node_modules && npm install`
@@ -316,28 +371,37 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Verify all dependencies: `npm install`
 
 **CORS errors:**
-- Ensure backend is running on `http://localhost:8001`
+- Ensure backend is running on `http://localhost:8000`
 - Check API base URL in `src/services/api.js`
+- Verify CORS middleware configuration in backend
 
 **Model prediction errors:**
 - Train the model first using `/train` endpoint
 - Verify input data format matches API schema
 - Check that all required fields are provided
+- Ensure CSV data file is accessible
+
+**Service import warnings:**
+- Services are optional; basic functionality works without them
+- Check if service files exist in `backend/services/`
+- Verify Google API key if using AI features
 
 ## 📞 Support
 
 For support and questions:
 - Create an issue on GitHub
-- Check the documentation
-- Review API endpoints at `http://localhost:8001/docs`
+- Check the [FARMER_SUPPORT_GUIDE.md](FARMER_SUPPORT_GUIDE.md) for detailed guidance
+- Review [QUICK_START.md](QUICK_START.md) for setup instructions
+- Check [PORT_CONFIGURATION.md](PORT_CONFIGURATION.md) for port setup
+- Review API documentation at `http://localhost:8000/docs`
+
+## 📚 Additional Resources
+
+- **Farmer Support Guide**: Comprehensive guide for farmers using the platform
+- **Quick Start Guide**: Fast setup instructions
+- **Port Configuration**: Network setup and troubleshooting
+- **API Documentation**: Interactive docs available at `/docs` endpoint
 
 ---
 
 **Built with ❤️ for sustainable agriculture and data-driven farming decisions.**
-=======
-# farmcast
->>>>>>> 9e9616d1a789dd9f73c096750f89915c3e00dead
-# FarmCast
-
-This is the FarmCast project repository.  
-Contributors can clone, update, and push changes here.
